@@ -7,14 +7,12 @@ dependencies:
   - pip
   - jupyter
   - ipykernel
-  - pip:
-      - torch==2.9.0
-      - torchvision==0.24.0
-      - torchaudio==2.9.0
-      - scikit-learn>=1.5
-      - pandas>=2.2
-      - numpy>=1.26
-      - matplotlib>=3.9
-      - seaborn>=0.13
-      - optuna>=4.0
-      - tqdm
+  - scikit-learn>=1.5
+  - pandas>=2.2
+  - numpy>=1.26
+  - matplotlib>=3.9
+  - seaborn>=0.13
+  - optuna>=4.0
+  - tqdm
+# NOTA: Instalar PyTorch con CUDA por separado:
+# pip install torch==2.9.0 torchvision==0.24.0 torchaudio==2.9.0 --index-url https://download.pytorch.org/whl/cu130
