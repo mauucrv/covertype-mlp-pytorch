@@ -33,3 +33,4 @@ optuna:
 paths:
   models_dir: "models"
   best_model_name: "covertype_mlp_final.pth"
+  tensorboard_dir: "runs"

@@ -3,6 +3,7 @@ import torch.nn as nn
 import torch.optim as optim
 from pathlib import Path
 import argparse
+from torch.utils.tensorboard import SummaryWriter
 
 from src.model import MLP
 from src.dataset import get_dataloaders
@@ -39,8 +40,8 @@ def train_epoch(model, train_loader, criterion, optimizer, device):
 
     return train_loss, train_acc
 
-def train_model(model, train_loader, val_loader, criterion, optimizer, scheduler, device, epochs, patience=10):
-    """Entrena el modelo completo con early stopping."""
+def train_model(model, train_loader, val_loader, criterion, optimizer, scheduler, device, epochs, patience=10, writer=None):
+    """Entrena el modelo completo con early stopping y logging de TensorBoard."""
     history = {
         'train_loss': [], 'train_acc': [],
         'val_loss': [], 'val_acc': [],
@@ -66,6 +67,13 @@ def train_model(model, train_loader, val_loader, criterion, optimizer, scheduler
         history['lr'].append(current_lr)
 
         print(f'{epoch+1:<8} {train_loss:<12.4f} {train_acc:<12.4f} {val_loss:<12.4f} {val_acc:<12.4f} {current_lr:<12.6f}')
+
+        if writer is not None:
+            writer.add_scalar('Loss/train', train_loss, epoch)
+            writer.add_scalar('Loss/val', val_loss, epoch)
+            writer.add_scalar('Accuracy/train', train_acc, epoch)
+            writer.add_scalar('Accuracy/val', val_acc, epoch)
+            writer.add_scalar('Hyperparameters/learning_rate', current_lr, epoch)
 
         scheduler.step(val_loss)
 
@@ -134,6 +142,12 @@ def main():
     
     EPOCHS = config['training']['epochs']
     
+    # Configurar TensorBoard
+    tensorboard_dir = Path(config['paths'].get('tensorboard_dir', 'runs'))
+    tensorboard_dir.mkdir(parents=True, exist_ok=True)
+    writer = SummaryWriter(log_dir=str(tensorboard_dir))
+    print(f'Logging de TensorBoard guardado en: {tensorboard_dir}')
+
     print('Entrenando modelo...')
     history = train_model(
         model=model,
@@ -144,8 +158,12 @@ def main():
         scheduler=scheduler,
         device=device,
         epochs=EPOCHS,
-        patience=config['training']['patience']
+        patience=config['training']['patience'],
+        writer=writer
     )
+    
+    # Cerrar el writer al finalizar el entrenamiento
+    writer.close()
     
     # Evaluación en test
     test_loss, test_acc = evaluate(model, data_info['test_loader'], criterion, device)
