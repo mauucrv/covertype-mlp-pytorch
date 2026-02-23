@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 from pathlib import Path
+import argparse
 
 from src.model import MLP
 from src.dataset import get_dataloaders
@@ -86,7 +87,15 @@ def train_model(model, train_loader, val_loader, criterion, optimizer, scheduler
     return history
 
 def main():
-    config = load_config()
+    parser = argparse.ArgumentParser(description="Entrenamiento MLP para Cobertura Forestal")
+    parser.add_argument('--config', type=str, default='configs/config.yaml', 
+                        help='Ruta al archivo de configuración YAML')
+    args = parser.parse_args()
+
+    # Cargar configuración desde el CLI
+    config = load_config(args.config)
+    print(f'Usando configuración cargada desde: {args.config}')
+
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     print(f'Dispositivo: {device}')
     

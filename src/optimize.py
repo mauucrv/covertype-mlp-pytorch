@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 import optuna
+import argparse
 from torch.utils.data import DataLoader
 
 from src.model import MLP
@@ -83,7 +84,15 @@ def objective(trial, data_info, device, config):
     return best_val_acc
 
 def main():
-    config = load_config()
+    parser = argparse.ArgumentParser(description="Optimización de Hiperparámetros con Optuna")
+    parser.add_argument('--config', type=str, default='configs/config.yaml', 
+                        help='Ruta al archivo de configuración YAML')
+    args = parser.parse_args()
+
+    # Cargar configuración desde el CLI
+    config = load_config(args.config)
+    print(f'Usando configuración cargada desde: {args.config}')
+
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     print('Cargando datos para optimización...')
     data_info = get_dataloaders(
