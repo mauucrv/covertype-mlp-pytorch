@@ -7,13 +7,14 @@ from torch.utils.data import DataLoader
 from src.model import MLP
 from src.dataset import get_dataloaders
 from src.evaluate import evaluate
+from src.config import load_config
 
-def create_model(trial, input_size, num_classes, device):
+def create_model(trial, input_size, num_classes, device, config):
     """Crea un modelo MLP con hiperparámetros sugeridos por Optuna."""
-    n_layers = trial.suggest_int('n_layers', 2, 5)
+    n_layers = trial.suggest_int('n_layers', *config['optuna']['hidden_layers_range'])
     
     hidden_sizes = []
-    first_layer_size = trial.suggest_int('first_layer_size', 256, 512, step=64)
+    first_layer_size = trial.suggest_int('first_layer_size', *config['optuna']['first_layer_range'], step=64)
 
     for i in range(n_layers):
         if i == 0:
@@ -23,7 +24,7 @@ def create_model(trial, input_size, num_classes, device):
             layer_size = trial.suggest_int(f'layer_{i}_size', max(64, prev_size // 2), prev_size, step=32)
             hidden_sizes.append(layer_size)
 
-    dropout_rate = trial.suggest_float('dropout_rate', 0.1, 0.5)
+    dropout_rate = trial.suggest_float('dropout_rate', *config['optuna']['dropout_range'])
 
     model = MLP(
         input_size=input_size,
@@ -34,16 +35,16 @@ def create_model(trial, input_size, num_classes, device):
 
     return model
 
-def objective(trial, data_info, device):
+def objective(trial, data_info, device, config):
     """Función objetivo para Optuna."""
     input_size = data_info['input_size']
     num_classes = data_info['num_classes']
     
     # Crear modelo
-    model = create_model(trial, input_size, num_classes, device)
+    model = create_model(trial, input_size, num_classes, device, config)
 
     # Hiperparámetros de entrenamiento
-    lr = trial.suggest_float('lr', 1e-4, 1e-2, log=True)
+    lr = trial.suggest_float('lr', *config['optuna']['lr_range'], log=True)
     batch_size = trial.suggest_categorical('batch_size', [128, 256, 512])
 
     train_loader = DataLoader(
@@ -58,7 +59,7 @@ def objective(trial, data_info, device):
     criterion = nn.CrossEntropyLoss(weight=data_info['class_weights'].to(device))
     optimizer = optim.Adam(model.parameters(), lr=lr)
 
-    n_epochs = 20
+    n_epochs = config['optuna']['n_epochs']
     best_val_acc = 0
 
     for epoch in range(n_epochs):
@@ -82,9 +83,15 @@ def objective(trial, data_info, device):
     return best_val_acc
 
 def main():
+    config = load_config()
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     print('Cargando datos para optimización...')
-    data_info = get_dataloaders(batch_size=256)
+    data_info = get_dataloaders(
+        batch_size=config['data']['batch_size'],
+        test_size=config['data']['test_size'],
+        val_size=config['data']['val_size'],
+        random_state=config['data']['random_state']
+    )
     
     study = optuna.create_study(
         direction='maximize',
@@ -93,7 +100,9 @@ def main():
     )
     
     print('Iniciando búsqueda de hiperparámetros con Optuna...')
-    study.optimize(lambda trial: objective(trial, data_info, device), n_trials=30, show_progress_bar=True)
+    study.optimize(lambda trial: objective(trial, data_info, device, config), 
+                   n_trials=config['optuna']['n_trials'], 
+                   show_progress_bar=True)
     
     print(f'\nBúsqueda completada.')
     print(f'Mejor accuracy en validación: {study.best_value*100:.2f}%')

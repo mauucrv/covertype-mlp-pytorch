@@ -1,11 +1,12 @@
-import os
 import torch
 import torch.nn as nn
 import torch.optim as optim
+from pathlib import Path
 
 from src.model import MLP
 from src.dataset import get_dataloaders
 from src.evaluate import evaluate
+from src.config import load_config
 
 def train_epoch(model, train_loader, criterion, optimizer, device):
     """Entrena el modelo por una época."""
@@ -85,17 +86,23 @@ def train_model(model, train_loader, val_loader, criterion, optimizer, scheduler
     return history
 
 def main():
+    config = load_config()
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     print(f'Dispositivo: {device}')
     
     # Cargar datos
-    data_info = get_dataloaders(batch_size=256)
+    data_info = get_dataloaders(
+        batch_size=config['data']['batch_size'],
+        test_size=config['data']['test_size'],
+        val_size=config['data']['val_size'],
+        random_state=config['data']['random_state']
+    )
     
     # Crear modelo (arquitectura optimizada final reportada)
     INPUT_SIZE = data_info['input_size']
     NUM_CLASSES = data_info['num_classes']
-    HIDDEN_SIZES = [512, 480, 400, 360]
-    DROPOUT_RATE = 0.127
+    HIDDEN_SIZES = config['model']['hidden_sizes']
+    DROPOUT_RATE = config['model']['dropout_rate']
     
     model = MLP(
         input_size=INPUT_SIZE,
@@ -108,12 +115,15 @@ def main():
     
     # Entrenar modelo final sin pesos de clase
     criterion = nn.CrossEntropyLoss()
-    optimizer = optim.Adam(model.parameters(), lr=0.00031)
+    optimizer = optim.Adam(model.parameters(), lr=config['training']['learning_rate'])
     scheduler = optim.lr_scheduler.ReduceLROnPlateau(
-        optimizer, mode='min', factor=0.5, patience=7
+        optimizer, 
+        mode='min', 
+        factor=config['training']['scheduler_factor'], 
+        patience=config['training']['scheduler_patience']
     )
     
-    EPOCHS = 100
+    EPOCHS = config['training']['epochs']
     
     print('Entrenando modelo...')
     history = train_model(
@@ -125,7 +135,7 @@ def main():
         scheduler=scheduler,
         device=device,
         epochs=EPOCHS,
-        patience=15
+        patience=config['training']['patience']
     )
     
     # Evaluación en test
@@ -133,8 +143,10 @@ def main():
     print(f'\nEvaluación final en Test -> Loss: {test_loss:.4f}, Accuracy: {test_acc*100:.2f}%')
     
     # Guardar modelo
-    os.makedirs('models', exist_ok=True)
-    model_path = 'models/covertype_mlp_final.pth'
+    models_dir = Path(config['paths']['models_dir'])
+    models_dir.mkdir(parents=True, exist_ok=True)
+    model_path = models_dir / config['paths']['best_model_name']
+    
     torch.save({
         'model_state_dict': model.state_dict(),
         'architecture': {
